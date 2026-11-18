@@ -1,0 +1,37 @@
+# This is workflow to build docker images
+name: build-docker-images
+
+on:
+  push:
+    branches: [ "master", "main" ]
+    # Only kick workflow if docker files are changed
+    paths:
+      - 'docker/**'
+      - '.github/workflows/**'
+  pull_request:
+    branches: [ "master", "main" ]
+    # Only kick workflow if docker files are changed
+    paths:
+      - 'docker/**'
+      - '.github/workflows/**'
+
+  # Allows you to run this workflow manually from the Actions tab
+  workflow_dispatch:
+
+# A workflow run is made up of one or more jobs that can run sequentially or in parallel
+jobs:
+  build:
+
+    name: build-${{ matrix.distro }}-${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04]
+        distro: [noetic, jazzy, rolling, jazzy-gazebo]
+
+    steps:
+    - name: Check out repository code
+      uses: actions/checkout@v4
+    - name: Build ROS ${{ matrix.distro }} docker image
+      run: docker build --rm -f docker/Dockerfile.${{ matrix.distro }} -t workflows/ros-${{ matrix.distro }} .

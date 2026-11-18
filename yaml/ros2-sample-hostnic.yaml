@@ -1,0 +1,64 @@
+# Host network sample for KubeEdge / Kubernetes test deployment.
+# Replace the kubernetes.io/hostname values with your edge node (talker) and cloud node (listener) names,
+# see `kubectl get nodes`.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ros2-talker-1
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: ros2-talker-1
+  template:
+    metadata:
+      labels:
+        app: ros2-talker-1
+    spec:
+      containers:
+      - image: tomoyafujita/ros:rolling
+        command: ["/bin/bash", "-c"]
+        args: ["source /opt/ros/$ROS_DISTRO/setup.bash && ros2 topic pub /chatter1 std_msgs/String \"data: Hello, I am talker-1\""]
+        imagePullPolicy: IfNotPresent
+        tty: true
+        name: ros2-talker-1
+      nodeSelector:
+        kubernetes.io/hostname: ubuntu         # edge node name
+      hostNetwork: true
+      tolerations:
+      - key: node-role.kubernetes.io/control-plane
+        operator: Exists
+        effect: NoSchedule
+      restartPolicy: Always
+
+---
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ros2-listener-1
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: ros2-listener-1
+  template:
+    metadata:
+      labels:
+        app: ros2-listener-1
+    spec:
+      containers:
+      - image: tomoyafujita/ros:rolling
+        command: ["/bin/bash", "-c"]
+        args: ["source /opt/ros/$ROS_DISTRO/setup.bash && ros2 topic echo /chatter1 std_msgs/String"]
+        imagePullPolicy: IfNotPresent
+        tty: true
+        name: ros2-listener-1
+      nodeSelector:
+        kubernetes.io/hostname: tomoyafujita   # cloud (control-plane) node name
+      hostNetwork: true
+      tolerations:
+      - key: node-role.kubernetes.io/control-plane
+        operator: Exists
+        effect: NoSchedule
+      restartPolicy: Always

@@ -1,0 +1,167 @@
+############################
+### ROS master / roscore ###
+############################
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: roscore-deployment
+  labels:
+    app: ros1
+    node: roscore
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      node: roscore
+  template:
+    metadata:
+      labels:
+        node: roscore
+    spec:
+      containers:
+      - name: roscore
+        tty: true
+        image: tomoyafujita/ros:noetic
+        command: ["/bin/bash", "-c"]
+        args: ["source /opt/ros/$ROS_DISTRO/setup.bash && roscore"]
+        imagePullPolicy: IfNotPresent
+        ports:
+        - containerPort: 11311
+          name: roscoreport
+      nodeSelector:
+        nodetype: master
+      tolerations:
+      - key: node-role.kubernetes.io/control-plane
+        operator: Exists
+        effect: NoSchedule
+
+---
+
+### Headless service declaration.
+### This is required to map to app roscore so that other pods can DNS rosmaster IP address dynamically.
+apiVersion: v1
+kind: Service
+metadata:
+  name: rosmaster
+  labels:
+    app: ros1
+    node: roscore
+spec:
+  clusterIP: None
+  #ports:
+  #  - port: 11311
+  selector:
+    node: roscore
+
+---
+
+##################
+### ROS talker ###
+##################
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: talker-deployment
+  labels:
+    app: ros1
+    node: talker
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      node: talker
+  template:
+    metadata:
+      labels:
+        node: talker
+    spec:
+      containers:
+      - name: publisher
+        tty: true
+        image: tomoyafujita/ros:noetic
+        command: ["/bin/bash", "-c"]
+        args: ["source /opt/ros/$ROS_DISTRO/setup.bash && until rostopic list; do sleep 1; done && rosrun roscpp_tutorials talker"]
+        imagePullPolicy: IfNotPresent
+        env:
+        - name: ROS_MASTER_URI
+          value: http://rosmaster:11311
+        - name: ROS_HOSTNAME
+          value: ros-talker
+      nodeSelector:
+        nodetype: worker
+
+---
+
+### Headless service declaration.
+### This is required to map to app publisher so that other pods can DNS IP address dynamically.
+apiVersion: v1
+kind: Service
+metadata:
+  name: ros-talker
+  labels:
+    app: ros1
+    node: talker
+spec:
+  clusterIP: None
+  selector:
+    node: talker
+
+---
+
+####################
+### ROS listener ###
+####################
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: listener-deployment
+  labels:
+    app: ros1
+    node: listener
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      node: listener
+  template:
+    metadata:
+      labels:
+        node: listener
+    spec:
+      containers:
+      - name: subscription
+        tty: true
+        image: tomoyafujita/ros:noetic
+        command: ["/bin/bash", "-c"]
+        args: ["source /opt/ros/$ROS_DISTRO/setup.bash && until rostopic list; do sleep 1; done && rosrun rospy_tutorials listener.py"]
+        imagePullPolicy: IfNotPresent
+        env:
+        - name: ROS_MASTER_URI
+          value: http://rosmaster:11311
+        - name: ROS_HOSTNAME
+          value: ros-listener
+      nodeSelector:
+        nodetype: master
+      tolerations:
+      - key: node-role.kubernetes.io/control-plane
+        operator: Exists
+        effect: NoSchedule
+
+---
+
+### Headless service declaration.
+### This is required to map to app subscription so that other pods can DNS IP address dynamically.
+apiVersion: v1
+kind: Service
+metadata:
+  name: ros-listener
+  labels:
+    app: ros1
+    node: listener
+spec:
+  clusterIP: None
+  selector:
+    node: listener
